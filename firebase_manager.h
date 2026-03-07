@@ -1,6 +1,8 @@
 #ifndef FIREBASE_MANAGER_H
 #define FIREBASE_MANAGER_H
 
+#include "sensor_manager.h"  // ← tambahkan ini
+
 #include <Arduino.h>
 
 // ─── Konfigurasi Firebase ─────────────────────────────────────
@@ -8,18 +10,6 @@
 #define FIREBASE_API_KEY  "YOUR_API_KEY"
 #define FIREBASE_EMAIL    "YOUR_EMAIL"
 #define FIREBASE_PASSWORD "YOUR_PASSWORD"
-
-// ─── Struct Data Sensor ───────────────────────────────────────
-
-/**
- * @brief Struktur data sensor yang dikirim/diterima dari Firebase.
- */
-typedef struct {
-  float temperature;   // Suhu dalam Celsius
-  float humidity;      // Kelembapan dalam persen (%)
-  int   co2;           // Kadar CO2 dalam ppm
-  bool  isValid;       // true jika data berhasil dibaca
-} SensorData_t;
 
 // ─── Public API ───────────────────────────────────────────────
 

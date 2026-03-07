@@ -1,6 +1,5 @@
-
-
 #include "wifi_manager.h"
+#include "sensor_manager.h"
 #include "firebase_manager.h"
 
 // ─── Konfigurasi ─────────────────────────────────────────────
@@ -17,7 +16,6 @@ static unsigned long _lastSendTime = 0;
 void handleSendData(void);
 void handleGetData(void);
 void handleDeleteData(void);
-SensorData_t readSensors(void);
 
 // ─── Setup ───────────────────────────────────────────────────
 void setup() {
@@ -30,7 +28,10 @@ void setup() {
     while (true) { delay(1000); }  // Halt
   }
 
-  // 2. Inisialisasi Firebase
+  // 2. Inisialisasi Sensor
+  SensorManager_Init();
+
+  // 3. Inisialisasi Firebase
   if (!FirebaseManager_Init()) {
     Serial.println("[Main] Firebase gagal — program berhenti.");
     while (true) { delay(1000); }  // Halt
@@ -63,7 +64,12 @@ void loop() {
  * @brief Baca data dari sensor lalu kirim ke Firebase.
  */
 void handleSendData(void) {
-  SensorData_t data = readSensors();
+  SensorData_t data = SensorManager_ReadAll();
+
+  if (!data.isValid) {
+    Serial.println("[Main] Data sensor tidak valid, pengiriman dibatalkan.");
+    return;
+  }
 
   if (FirebaseManager_SendData(FIREBASE_PATH, data)) {
     Serial.println("[Main] Data berhasil dikirim.");
@@ -97,18 +103,4 @@ void handleDeleteData(void) {
   } else {
     Serial.println("[Main] Gagal menghapus data.");
   }
-}
-
-/**
- * @brief Simulasi pembacaan sensor.
- *        Ganti isi fungsi ini dengan pembacaan sensor asli.
- * @return SensorData_t berisi data sensor.
- */
-SensorData_t readSensors(void) {
-  SensorData_t data;
-  data.temperature = 27.5f;  // TODO: ganti dengan baca sensor DHT/SHT
-  data.humidity = 80.0f;     // TODO: ganti dengan baca sensor DHT/SHT
-  data.co2 = 412;            // TODO: ganti dengan baca sensor MQ-135/SCD40
-  data.isValid = true;
-  return data;
 }
