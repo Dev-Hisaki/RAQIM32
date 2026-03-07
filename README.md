@@ -10,4 +10,14 @@
       <li>MQ135</li>
     </ul>
   </dd>
+  <dt><h2>Konfigurasi</h2></dt>
+  <dd>
+    <ul>
+      <li>#define WIFI_SSID "SSID_NAME"</li>
+      <li>#define WIFI_PASSWORD "SSID_PASSWORD"</li>
+      <li>#define FIREBASE_PATH "/ruangan/lantai1"</li>
+      <li>#define SEND_INTERVAL 10000</li>
+      <li>static unsigned long _lastSendTime = 0;</li>
+    </ul>
+  </dd>
 </dl>
