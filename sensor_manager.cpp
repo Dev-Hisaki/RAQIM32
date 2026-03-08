@@ -1,96 +1,132 @@
 #include "sensor_manager.h"
 #include <DHT.h>
 
-// ─── Private State ────────────────────────────────────────────
-static DHT _dht(PIN_DHT22, DHT22);
+static DHT dht(PIN_DHT22, DHT22);
 
-// ─── Private Helpers ─────────────────────────────────────────
+float RO = MQ135_RO_CLEAN;
 
-/**
- * @brief Hitung resistance sensor MQ-135 dari nilai ADC.
- * @param adcValue Nilai mentah ADC (0–4095).
- * @return Nilai RS dalam kOhm.
- */
-static float _MQ135_GetRS(int adcValue) {
-  if (adcValue <= 0) adcValue = 1;  // Hindari pembagian nol
-  float voltage = (adcValue / MQ135_ADC_MAX) * MQ135_VCC;
-  return ((MQ135_VCC - voltage) / voltage) * MQ135_RL;
+
+// membaca ADC rata-rata
+static int MQ135_ReadADC()
+{
+  long total = 0;
+
+  for(int i=0;i<10;i++)
+  {
+    total += analogRead(PIN_MQ135);
+    delay(20);
+  }
+
+  return total / 10;
 }
 
-/**
- * @brief Konversi RS/Ro menjadi ppm CO2 menggunakan kurva karakteristik MQ-135.
- *        Rumus: ppm = a * (RS/Ro)^b  (a=116.602, b=-2.769 untuk CO2)
- * @param rs Nilai RS sensor saat ini.
- * @return Estimasi kadar CO2 dalam ppm.
- */
-static int _MQ135_ConvertToPPM(float rs) {
-  float ratio = rs / MQ135_RO_CLEAN;
-  float ppm = 116.602f * pow(ratio, -2.769f);
+
+// hitung RS
+static float MQ135_GetRS(int adc)
+{
+  if(adc <= 0) adc = 1;
+
+  float voltage = ((float)adc / MQ135_ADC_MAX) * MQ135_VCC;
+
+  float rs = ((MQ135_VCC - voltage) / voltage) * MQ135_RL;
+
+  return rs;
+}
+
+
+// konversi RS ke ppm
+static int MQ135_GetPPM(float rs)
+{
+  float ratio = rs / RO;
+
+  float ppm = 116.602 * pow(ratio, -2.769);
+
+  if(ppm < 0) ppm = 0;
+  if(ppm > 5000) ppm = 5000;   // batas realistis
+
   return (int)ppm;
 }
 
-// ─── Public Implementations ──────────────────────────────────
 
-void SensorManager_Init(void) {
-  _dht.begin();
-  analogReadResolution(12);  // Set ADC ESP32 ke 12-bit (0–4095)
-  Serial.println("[Sensor] Inisialisasi DHT22 dan MQ-135 selesai.");
+// kalibrasi sensor
+static float MQ135_Calibrate()
+{
+  Serial.println("[MQ135] Calibrating...");
+
+  float rs = 0;
+
+  for(int i=0;i<50;i++)
+  {
+    int adc = MQ135_ReadADC();
+
+    rs += MQ135_GetRS(adc);
+
+    delay(200);
+  }
+
+  rs = rs / 50;
+
+  float ro = rs / 3.6;
+
+  Serial.print("[MQ135] RO = ");
+  Serial.println(ro);
+
+  return ro;
 }
 
-SensorData_t SensorManager_ReadAll(void) {
+
+void SensorManager_Init(void)
+{
+  dht.begin();
+
+  analogReadResolution(12);
+
+  Serial.println("[Sensor] Warming MQ135...");
+
+  delay(20000);   // warm up sensor
+
+  RO = MQ135_Calibrate();
+
+  Serial.println("[Sensor] Ready");
+}
+
+
+SensorData_t SensorManager_ReadAll(void)
+{
   SensorData_t data;
 
-  data.temperature = SensorManager_GetTemperature();
-  data.humidity = SensorManager_GetHumidity();
-  data.co2 = SensorManager_GetCO2();
+  data.temperature = dht.readTemperature();
+  data.humidity = dht.readHumidity();
 
-  // isValid = true hanya jika DHT22 tidak mengembalikan NAN
-  data.isValid = (!isnan(data.temperature) && !isnan(data.humidity));
+  int adc = MQ135_ReadADC();
 
-  if (!data.isValid) {
-    Serial.println("[Sensor] Gagal membaca DHT22!");
-  }
+  float rs = MQ135_GetRS(adc);
+
+  data.co2 = MQ135_GetPPM(rs);
+
+  data.isValid = !(isnan(data.temperature) || isnan(data.humidity));
 
   return data;
 }
 
-float SensorManager_GetTemperature(void) {
-  float temp = _dht.readTemperature();
-  if (isnan(temp)) {
-    Serial.println("[Sensor] Error: Gagal baca suhu DHT22.");
-  }
-  return temp;
+
+float SensorManager_GetTemperature(void)
+{
+  return dht.readTemperature();
 }
 
-float SensorManager_GetHumidity(void) {
-  float hum = _dht.readHumidity();
-  if (isnan(hum)) {
-    Serial.println("[Sensor] Error: Gagal baca kelembapan DHT22.");
-  }
-  return hum;
+
+float SensorManager_GetHumidity(void)
+{
+  return dht.readHumidity();
 }
 
-int SensorManager_GetCO2(void) {
-  int adcValue = analogRead(PIN_MQ135);
-  float rs = _MQ135_GetRS(adcValue);
-  return _MQ135_ConvertToPPM(rs);
-}
 
-void SensorManager_RunTemperatureMonitoring(void) {
-  float temp = SensorManager_GetTemperature();
-  if (!isnan(temp)) {
-    Serial.printf("[Sensor] Suhu       : %.2f C\n", temp);
-  }
-}
+int SensorManager_GetCO2(void)
+{
+  int adc = MQ135_ReadADC();
 
-void SensorManager_RunHumidityMonitoring(void) {
-  float hum = SensorManager_GetHumidity();
-  if (!isnan(hum)) {
-    Serial.printf("[Sensor] Kelembapan : %.2f %%\n", hum);
-  }
-}
+  float rs = MQ135_GetRS(adc);
 
-void SensorManager_RunCO2Monitoring(void) {
-  int co2 = SensorManager_GetCO2();
-  Serial.printf("[Sensor] CO2        : %d ppm\n", co2);
+  return MQ135_GetPPM(rs);
 }

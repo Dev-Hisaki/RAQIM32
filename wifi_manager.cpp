@@ -1,68 +1,108 @@
 #include "wifi_manager.h"
 #include <WiFi.h>
 
-// ─── Private State ────────────────────────────────────────────
-static char _ssid[WIFI_SSID_MAX_LEN] = "NAMA_WIFI_KAMU";
-static char _password[WIFI_PASS_MAX_LEN] = "PASSWORD_KAMU";
+static char _ssid[WIFI_SSID_MAX_LEN] = "";
+static char _password[WIFI_PASS_MAX_LEN] = "";
 
-// ─── Private Helpers ─────────────────────────────────────────
-static bool _isValidSSID(const char* ssid) {
-  return (ssid != NULL && strlen(ssid) > 0);
-}
-
-// ─── Public Implementations ──────────────────────────────────
-bool WiFiManager_Connect(const char* ssid, const char* password) {
-  if (!_isValidSSID(ssid)) {
-    Serial.println("[WiFi] Error: SSID kosong!");
+bool WiFiManager_Connect(const char* ssid, const char* password)
+{
+  if (ssid == NULL || strlen(ssid) == 0)
+  {
+    Serial.println("[WiFi] SSID tidak valid");
     return false;
   }
 
-  // Simpan kredensial ke state internal
   WiFiManager_SetSSID(ssid);
   WiFiManager_SetPassword(password);
 
-  Serial.printf("[WiFi] Menghubungkan ke \"%s\"", _ssid);
+  Serial.printf("[WiFi] Connecting to %s", _ssid);
+
   WiFi.begin(_ssid, _password);
 
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < WIFI_CONNECT_TIMEOUT) {
+  int retry = 0;
+
+  while (WiFi.status() != WL_CONNECTED && retry < WIFI_CONNECT_TIMEOUT)
+  {
     delay(500);
     Serial.print(".");
-    retries++;
+    retry++;
   }
+
   Serial.println();
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("[WiFi] Terhubung!");
-    Serial.printf("[WiFi] IP Address: %s\n", WiFi.localIP().toString().c_str());
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println("[WiFi] Connected!");
+    Serial.print("[WiFi] IP: ");
+    Serial.println(WiFi.localIP());
     return true;
   }
 
-  Serial.println("[WiFi] Gagal terhubung (timeout).");
+  Serial.println("[WiFi] Connection failed");
+
   return false;
 }
 
-bool WiFiManager_IsConnected(void) {
-  return (WiFi.status() == WL_CONNECTED);
+bool WiFiManager_Reconnect(void)
+{
+  Serial.println("[WiFi] Reconnecting...");
+
+  WiFi.disconnect();
+
+  WiFi.begin(_ssid, _password);
+
+  int retry = 0;
+
+  while (WiFi.status() != WL_CONNECTED && retry < WIFI_CONNECT_TIMEOUT)
+  {
+    delay(500);
+    Serial.print(".");
+    retry++;
+  }
+
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println("[WiFi] Reconnected!");
+    return true;
+  }
+
+  Serial.println("[WiFi] Reconnect failed");
+
+  return false;
 }
 
-void WiFiManager_Disconnect(void) {
+bool WiFiManager_IsConnected(void)
+{
+  return WiFi.status() == WL_CONNECTED;
+}
+
+void WiFiManager_Disconnect(void)
+{
   WiFi.disconnect(true);
-  Serial.println("[WiFi] Koneksi diputus.");
 }
 
-const char* WiFiManager_GetSSID(void) {
-  return (const char*)_ssid;
+const char* WiFiManager_GetSSID(void)
+{
+  return _ssid;
 }
 
-void WiFiManager_SetSSID(const char* newSsid) {
+const char* WiFiManager_GetPassword(void)
+{
+  return _password;
+}
+
+void WiFiManager_SetSSID(const char* newSsid)
+{
   if (newSsid == NULL) return;
+
   strncpy(_ssid, newSsid, WIFI_SSID_MAX_LEN - 1);
-  _ssid[WIFI_SSID_MAX_LEN - 1] = '\0';
 }
 
-void WiFiManager_SetPassword(const char* newPassword) {
+void WiFiManager_SetPassword(const char* newPassword)
+{
   if (newPassword == NULL) return;
+
   strncpy(_password, newPassword, WIFI_PASS_MAX_LEN - 1);
-  _password[WIFI_PASS_MAX_LEN - 1] = '\0';
 }
